@@ -2,6 +2,7 @@ from flask import render_template, request, jsonify, session, redirect, url_for,
 from app import app, db
 from models import APIKey, UsageStats
 from music_sources import MusicSources
+from proxy_handler import proxy_handler
 import time
 import logging
 from datetime import datetime
@@ -131,12 +132,16 @@ def stream_music():
             response_time = time.time() - start_time
             UsageStats.log_request(api_key, '/api/stream', query, response_time, True)
             
+            # Create proxy URL to hide original JioSaavn URL
+            original_url = result.get('stream_url', '')
+            proxy_url = proxy_handler.create_proxy_url(original_url, api_key)
+            
             return jsonify({
                 'success': True,
                 'title': result.get('title', ''),
                 'artist': result.get('artist', ''),
                 'duration': result.get('duration', ''),
-                'stream_url': result.get('stream_url', ''),
+                'stream_url': proxy_url,  # Now shows your domain instead of JioSaavn
                 'source': result.get('source', 'jiosaavn'),
                 'quality': result.get('quality', '320kbps'),
                 'response_time': response_time
@@ -249,6 +254,11 @@ def api_status():
         'expires_at': key_data.get('expires_at').isoformat() if key_data.get('expires_at') else None,
         'is_active': key_data.get('is_active')
     })
+
+@app.route('/proxy/stream/<url_hash>')
+def proxy_stream(url_hash):
+    """Proxy stream endpoint to hide original URLs"""
+    return proxy_handler.stream_audio(url_hash)
 
 @app.errorhandler(404)
 def not_found(error):
