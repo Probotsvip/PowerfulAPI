@@ -13,10 +13,19 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "flaks-music-api-secret-key-2025")
 CORS(app)
 
-# MongoDB configuration
-MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://jaydipmore74:xCpTm5OPAfRKYnif@cluster0.5jo18.mongodb.net/?retryWrites=true&w=majority")
-client = MongoClient(MONGO_URI)
-db = client.flaks_music_api
+# MongoDB configuration  
+MONGO_DB_URI = os.environ.get("MONGO_URI", "mongodb+srv://jaydipmore74:xCpTm5OPAfRKYnif@cluster0.5jo18.mongodb.net/?retryWrites=true&w=majority")
+
+logging.info("Connecting to your Mongo Database...")
+try:
+    client = MongoClient(MONGO_DB_URI)
+    # Test the connection
+    client.admin.command('ping')
+    db = client.flaks_music_api
+    logging.info("Connected to your Mongo Database.")
+except Exception as e:
+    logging.error(f"Failed to connect to your Mongo Database: {str(e)}")
+    exit()
 
 # Collections
 api_keys_collection = db.api_keys
