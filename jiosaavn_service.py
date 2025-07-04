@@ -6,12 +6,22 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 class JioSaavnService:
-    """JioSaavn service for music search and 320kbps streaming"""
+    """JioSaavn service for music search and 320kbps streaming - Optimized"""
     
     def __init__(self):
         self.base_url = "https://saavn.dev/api"
         self.search_url = "https://saavn.dev/api/search/songs"
         self.song_details_url = "https://saavn.dev/api/songs"
+        
+        # Connection settings - will be created when needed
+        self.connector_settings = {
+            'limit': 20,
+            'limit_per_host': 10, 
+            'ttl_dns_cache': 300,
+            'use_dns_cache': True,
+            'keepalive_timeout': 15
+        }
+        self.session = None
         
     async def search_songs(self, query: str) -> List[Dict]:
         """Search for songs on JioSaavn using proxy API"""
@@ -19,11 +29,15 @@ class JioSaavnService:
             params = {
                 'query': query,
                 'page': 1,
-                'limit': 5
+                'limit': 3  # Reduced for faster response
             }
             
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.search_url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as response:
+            # Use faster timeout and optimized connection
+            timeout = aiohttp.ClientTimeout(total=5, connect=2)
+            connector = aiohttp.TCPConnector(**self.connector_settings)
+            
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.get(self.search_url, params=params, timeout=timeout) as response:
                     if response.status == 200:
                         data = await response.json()
                         
@@ -90,8 +104,8 @@ class JioSaavnService:
             logger.error(f"Error getting JioSaavn song details for {song_id}: {str(e)}")
             return None
     
-    async def search_and_get_stream(self, query: str, max_attempts: int = 3) -> Optional[Dict]:
-        """Search for a song and get its streaming URL"""
+    async def search_and_get_stream(self, query: str, max_attempts: int = 2) -> Optional[Dict]:
+        """Search for a song and get its streaming URL - Optimized for speed"""
         for attempt in range(max_attempts):
             try:
                 logger.debug(f"JioSaavn attempt {attempt + 1}/{max_attempts} for: {query}")
@@ -101,11 +115,13 @@ class JioSaavnService:
                 
                 if not songs:
                     logger.debug(f"No songs found on attempt {attempt + 1}")
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(0.5)  # Faster retry
                     continue
                 
-                # Try to get stream URL for the first few results
-                for song in songs[:3]:  # Try first 3 results
-                    # Check if we already have download_url from search
+                # Try to get stream URL - prioritize direct download_url from search
+                for song in songs[:2]:  # Only try first 2 results for speed
+                    # First check if we already have download_url from search (fastest)
                     if song.get('download_url'):
                         return {
                             'stream_url': song['download_url'],
@@ -113,22 +129,22 @@ class JioSaavnService:
                             'artists': song['subtitle'],
                             'image': song['image']
                         }
-                    
-                    # Fallback to detailed API call
-                    song_details = await self.get_song_details(song['id'])
-                    
+                
+                # If no direct download_url, try details API only for first song
+                if songs:
+                    song_details = await self.get_song_details(songs[0]['id'])
                     if song_details and song_details.get('stream_url'):
                         logger.info(f"JioSaavn stream found via details API on attempt {attempt + 1}")
                         return song_details
                 
-                # Wait before retry
+                # Faster retry with less wait time
                 if attempt < max_attempts - 1:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5)
                     
             except Exception as e:
                 logger.error(f"JioSaavn attempt {attempt + 1} failed: {str(e)}")
                 if attempt < max_attempts - 1:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5)
         
         logger.warning(f"All JioSaavn attempts failed for: {query}")
         return None
