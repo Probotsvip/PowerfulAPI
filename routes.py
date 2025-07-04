@@ -132,19 +132,19 @@ def stream_music():
             response_time = time.time() - start_time
             UsageStats.log_request(api_key, '/api/stream', query, response_time, True)
             
-            # Create proxy URL to hide original JioSaavn URL
-            original_url = result.get('stream_url', '')
-            proxy_url = proxy_handler.create_proxy_url(original_url, api_key)
-            
+            # Return direct stream URL (more reliable than proxy)
             return jsonify({
                 'success': True,
                 'title': result.get('title', ''),
                 'artist': result.get('artist', ''),
                 'duration': result.get('duration', ''),
-                'stream_url': proxy_url,  # Now shows your domain instead of JioSaavn
+                'stream_url': result.get('stream_url', ''),  # Direct JioSaavn URL
                 'source': result.get('source', 'jiosaavn'),
                 'quality': result.get('quality', '320kbps'),
-                'response_time': response_time
+                'response_time': response_time,
+                'search_method': result.get('search_method', 'standard'),
+                'youtube_title': result.get('youtube_title', ''),
+                'original_query': result.get('original_query', query)
             })
         else:
             # Log failed request

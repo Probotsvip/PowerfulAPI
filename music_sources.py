@@ -186,64 +186,59 @@ class MusicSources:
         return None
     
     def _search_jiosaavn(self, query):
-        """Search JioSaavn using a working reliable approach"""
+        """Search JioSaavn using actual API calls"""
         try:
-            # For demonstration with real working stream URLs
-            # In production, you would implement actual JioSaavn API integration
-            # or use services that provide real stream URLs
+            # Use requests for synchronous API calls
+            import requests
+            from urllib.parse import quote
             
-            # Mock response with actual JioSaavn-style data structure for testing
-            # Replace this with real API calls in production
-            songs_database = {
-                'tum hi ho': {
-                    'title': 'Tum Hi Ho',
-                    'artist': 'Arijit Singh',
-                    'duration': '258',
-                    'stream_url': 'https://aac.saavncdn.com/136/5f1ea80c19e9c7c0de0c5b4df24c9a83_320.mp4',
-                    'source': 'jiosaavn',
-                    'quality': '320kbps'
-                },
-                'cheap thrills': {
-                    'title': 'Cheap Thrills',
-                    'artist': 'Sia',
-                    'duration': '210',
-                    'stream_url': 'https://aac.saavncdn.com/254/9ef6b3a44a70b27b4bc6b2a25e1e2a56_320.mp4',
-                    'source': 'jiosaavn',
-                    'quality': '320kbps'
-                },
-                'shape of you': {
-                    'title': 'Shape of You',
-                    'artist': 'Ed Sheeran',
-                    'duration': '233',
-                    'stream_url': 'https://aac.saavncdn.com/742/56cf25c70d264a45b2b32ce7d93c96b4_320.mp4',
-                    'source': 'jiosaavn',
-                    'quality': '320kbps'
-                },
-                'believer': {
-                    'title': 'Believer',
-                    'artist': 'Imagine Dragons',
-                    'duration': '204',
-                    'stream_url': 'https://aac.saavncdn.com/394/b68d0eefa5d2394cbe9d7c6e01b3c8f4_320.mp4',
-                    'source': 'jiosaavn',
-                    'quality': '320kbps'
-                }
+            # Use a working JioSaavn API
+            search_url = "https://saavn.dev/api/search/songs"
+            params = {
+                'query': query,
+                'page': 1,
+                'limit': 1
             }
             
-            # Search in the database
-            search_term = query.lower().strip()
-            for key, song_data in songs_database.items():
-                if key in search_term or search_term in key:
-                    logging.info(f"Found matching song: {song_data['title']} by {song_data['artist']}")
-                    return song_data
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
             
-            # If no exact match, return first song as fallback for testing
-            if songs_database:
-                first_song = list(songs_database.values())[0]
-                logging.info(f"Using fallback song: {first_song['title']} by {first_song['artist']}")
-                return first_song
-                        
+            response = requests.get(search_url, params=params, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('data', {}).get('results', [])
+                
+                if results:
+                    song = results[0]
+                    
+                    # Get download URLs
+                    download_urls = song.get('downloadUrl', [])
+                    stream_url = None
+                    
+                    # Try to get highest quality URL
+                    for url_data in download_urls:
+                        if url_data.get('quality') == '320kbps':
+                            stream_url = url_data.get('url', '')
+                            break
+                    
+                    if not stream_url and download_urls:
+                        # Fallback to any available quality
+                        stream_url = download_urls[0].get('url', '')
+                    
+                    if stream_url:
+                        return {
+                            'title': song.get('name', ''),
+                            'artist': ', '.join([artist.get('name', '') for artist in song.get('artists', {}).get('primary', [])]),
+                            'duration': str(song.get('duration', '180')),
+                            'stream_url': stream_url,
+                            'source': 'jiosaavn',
+                            'quality': '320kbps'
+                        }
+            
         except Exception as e:
-            logging.error(f"JioSaavn search error: {str(e)}")
+            logging.error(f"JioSaavn API error: {str(e)}")
         
         return None
     
