@@ -25,14 +25,19 @@ class MusicSources:
         try:
             # Check if query looks like lyrics (multiple words, common lyrics patterns)
             is_lyrics_query = self._is_lyrics_query(query)
+            logging.info(f"Query '{query}' detected as lyrics query: {is_lyrics_query}")
             
             # Try the new YouTube → JioSaavn approach first (best of both worlds)
             if source in ["auto", "hybrid"]:
+                logging.info(f"Attempting YouTube → JioSaavn hybrid search for: '{query}'")
                 result = self._search_youtube_to_jiosaavn(query)
                 if result:
                     result['response_time'] = str(time.time() - start_time)
                     result['source'] = 'youtube_to_jiosaavn'
+                    logging.info(f"YouTube → JioSaavn hybrid search SUCCESS for: '{query}'")
                     return result
+                else:
+                    logging.info(f"YouTube → JioSaavn hybrid search FAILED for: '{query}'")
             
             # For lyrics queries, prioritize YouTube over JioSaavn
             if is_lyrics_query:
