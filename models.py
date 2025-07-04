@@ -43,8 +43,19 @@ class APIKey:
         if not key_data.get("is_active", False):
             return False, "API key is inactive"
         
-        if key_data.get("expires_at") < datetime.utcnow():
-            return False, "API key has expired"
+        # Check expiry date if it exists
+        if key_data.get("expires_at"):
+            if key_data.get("expires_at") < datetime.utcnow():
+                return False, "API key has expired"
+        elif key_data.get("expiry_date"):
+            # Handle string date format
+            expiry_str = key_data.get("expiry_date")
+            try:
+                expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d")
+                if expiry_date < datetime.utcnow():
+                    return False, "API key has expired"
+            except:
+                pass  # Skip validation if date format is invalid
         
         # Check daily limit
         if key_data.get("requests_today", 0) >= key_data.get("daily_limit", 1000):

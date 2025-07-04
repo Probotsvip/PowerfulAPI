@@ -133,12 +133,12 @@ def stream_music():
             
             return jsonify({
                 'success': True,
-                'title': result['title'],
-                'artist': result['artist'],
-                'duration': result['duration'],
-                'stream_url': result['stream_url'],
-                'source': result['source'],
-                'quality': result['quality'],
+                'title': result.get('title', ''),
+                'artist': result.get('artist', ''),
+                'duration': result.get('duration', ''),
+                'stream_url': result.get('stream_url', ''),
+                'source': result.get('source', 'jiosaavn'),
+                'quality': result.get('quality', '320kbps'),
                 'response_time': response_time
             })
         else:
