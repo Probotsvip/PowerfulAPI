@@ -7,6 +7,7 @@ import re
 import base64
 import asyncio
 from jiosaavn_service import JioSaavnService
+from youtube_search_service import YouTubeSearchService
 
 class MusicSources:
     def __init__(self):
@@ -15,6 +16,7 @@ class MusicSources:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         self.jiosaavn_service = JioSaavnService()
+        self.youtube_service = YouTubeSearchService()
     
     def search_music(self, query, source="auto"):
         """Search for music from multiple sources with lyrics support"""
@@ -23,6 +25,14 @@ class MusicSources:
         try:
             # Check if query looks like lyrics (multiple words, common lyrics patterns)
             is_lyrics_query = self._is_lyrics_query(query)
+            
+            # Try the new YouTube → JioSaavn approach first (best of both worlds)
+            if source in ["auto", "hybrid"]:
+                result = self._search_youtube_to_jiosaavn(query)
+                if result:
+                    result['response_time'] = str(time.time() - start_time)
+                    result['source'] = 'youtube_to_jiosaavn'
+                    return result
             
             # For lyrics queries, prioritize YouTube over JioSaavn
             if is_lyrics_query:
@@ -99,6 +109,54 @@ class MusicSources:
             return True
         
         return False
+    
+    def _search_youtube_to_jiosaavn(self, query):
+        """
+        Revolutionary approach: Search YouTube for clean title, then search JioSaavn
+        Best of both worlds: YouTube's search accuracy + JioSaavn's audio quality
+        """
+        try:
+            # Step 1: Search YouTube to get clean, accurate song title
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                youtube_result = loop.run_until_complete(
+                    self.youtube_service.search_and_get_title(query, limit=1)
+                )
+            finally:
+                loop.close()
+            
+            if not youtube_result or not youtube_result.get('clean_title'):
+                logging.info("No YouTube result found for hybrid search")
+                return None
+            
+            clean_title = youtube_result['clean_title']
+            logging.info(f"YouTube found clean title: '{clean_title}' for query: '{query}'")
+            
+            # Step 2: Search JioSaavn with the clean YouTube title
+            jiosaavn_result = self._search_jiosaavn_async(clean_title)
+            
+            if jiosaavn_result:
+                # Combine the best of both: JioSaavn stream + YouTube metadata
+                jiosaavn_result.update({
+                    'youtube_title': youtube_result.get('youtube_title', ''),
+                    'youtube_url': youtube_result.get('youtube_url', ''),
+                    'youtube_thumbnail': youtube_result.get('thumbnail', ''),
+                    'youtube_channel': youtube_result.get('channel', ''),
+                    'search_method': 'youtube_to_jiosaavn',
+                    'original_query': query,
+                    'cleaned_query': clean_title
+                })
+                logging.info(f"Hybrid search success: YouTube title '{clean_title}' found on JioSaavn")
+                return jiosaavn_result
+            else:
+                logging.info(f"JioSaavn search failed for YouTube title: '{clean_title}'")
+                
+        except Exception as e:
+            logging.error(f"YouTube to JioSaavn search error: {str(e)}")
+        
+        return None
     
     def _search_jiosaavn_async(self, query):
         """Search JioSaavn using improved async service"""
