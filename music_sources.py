@@ -5,6 +5,8 @@ import time
 from urllib.parse import quote
 import re
 import base64
+import asyncio
+from jiosaavn_service import JioSaavnService
 
 class MusicSources:
     def __init__(self):
@@ -12,15 +14,16 @@ class MusicSources:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
+        self.jiosaavn_service = JioSaavnService()
     
     def search_music(self, query, source="auto"):
         """Search for music from multiple sources"""
         start_time = time.time()
         
         try:
-            # Primary source: JioSaavn (fastest Indian music)
+            # Primary source: JioSaavn (fastest Indian music) - Use improved async service
             if source in ["auto", "jiosaavn"]:
-                result = self._search_jiosaavn(query)
+                result = self._search_jiosaavn_async(query)
                 if result:
                     result['response_time'] = time.time() - start_time
                     return result
@@ -41,6 +44,33 @@ class MusicSources:
                     
         except Exception as e:
             logging.error(f"Error searching music: {str(e)}")
+        
+        return None
+    
+    def _search_jiosaavn_async(self, query):
+        """Search JioSaavn using improved async service"""
+        try:
+            # Run the async function in a new event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                result = loop.run_until_complete(self.jiosaavn_service.search_and_get_stream(query))
+                if result:
+                    return {
+                        'stream_url': result.get('stream_url', ''),
+                        'title': result.get('title', ''),
+                        'artist': result.get('artists', ''),
+                        'image_url': result.get('image', ''),
+                        'source': 'jiosaavn'
+                    }
+            finally:
+                loop.close()
+                
+        except Exception as e:
+            logging.error(f"JioSaavn async search error: {str(e)}")
+            # Fallback to old method
+            return self._search_jiosaavn(query)
         
         return None
     
